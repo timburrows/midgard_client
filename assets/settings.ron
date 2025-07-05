@@ -1,0 +1,87 @@
+(
+    modals: [],
+    last_screen: Title,
+    diagnostics: true,
+    debug_ui: false,
+    paused: false,
+    muted: false,
+    sound: (
+        general: 1.0,
+        music: 0.0,
+        sfx: 0.5,
+    ),
+    fov: 45.0,
+    sun_cycle: DayNight,
+    keybind: (
+        left: [
+            Keyboard(
+                key: KeyA,
+                mod_keys: (0),
+            ),
+            Keyboard(
+                key: ArrowLeft,
+                mod_keys: (0),
+            ),
+        ],
+        right: [
+            Keyboard(
+                key: KeyD,
+                mod_keys: (0),
+            ),
+            Keyboard(
+                key: ArrowRight,
+                mod_keys: (0),
+            ),
+        ],
+        forward: [
+            Keyboard(
+                key: KeyW,
+                mod_keys: (0),
+            ),
+            Keyboard(
+                key: ArrowUp,
+                mod_keys: (0),
+            ),
+        ],
+        backward: [
+            Keyboard(
+                key: KeyS,
+                mod_keys: (0),
+            ),
+            Keyboard(
+                key: ArrowDown,
+                mod_keys: (0),
+            ),
+        ],
+        jump: [
+            Keyboard(
+                key: Space,
+                mod_keys: (0),
+            ),
+        ],
+        dash: [
+            Keyboard(
+                key: AltLeft,
+                mod_keys: (0),
+            ),
+        ],
+        crouch: [
+            Keyboard(
+                key: ControlLeft,
+                mod_keys: (0),
+            ),
+        ],
+        sprint: [
+            Keyboard(
+                key: ShiftLeft,
+                mod_keys: (0),
+            ),
+        ],
+        attack: [
+            MouseButton(
+                button: Left,
+                mod_keys: (0),
+            ),
+        ],
+    ),
+)

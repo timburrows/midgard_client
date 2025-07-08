@@ -56,6 +56,8 @@ pub struct Models {
     #[dependency]
     pub player: Handle<Gltf>,
     #[dependency]
+    pub enemy: Handle<Gltf>,
+    #[dependency]
     pub rock: Handle<Gltf>,
 }
 
@@ -64,6 +66,7 @@ impl FromWorld for Models {
         let assets = world.resource::<AssetServer>();
         Self {
             player: assets.load("models/player.glb"),
+            enemy: assets.load("models/poring.glb"),
             rock: assets.load("models/rock.glb"),
         }
     }

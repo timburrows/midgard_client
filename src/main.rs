@@ -26,6 +26,7 @@ fn main() {
             fit_canvas_to_parent: true,
             // Tells wasm not to override default event handling, like F5 and Ctrl+R
             prevent_default_event_handling: false,
+            resolution: (1920., 1080.).into(),
             ..default()
         }),
         ..default()

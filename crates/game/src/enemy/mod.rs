@@ -1,20 +1,27 @@
 use super::*;
-use bevy::scene::SceneInstanceReady;
+use bevy_tnua_avian3d::{TnuaAvian3dPlugin, TnuaAvian3dSensorShape};
 use std::{f32::consts::PI, time::Duration};
+
 mod animation;
-mod control;
+mod behaviours;
 
 pub use animation::*;
-pub use control::*;
-
-pub const IDLE_TO_RUN_TRESHOLD: f32 = 0.01;
-pub const FLOAT_HEIGHT: f32 = 0.5;
 
 pub fn plugin(app: &mut App) {
-    app.add_plugins((control::plugin));
+    app.add_plugins((
+        behaviours::plugin,
+    ));
+        // .add_systems(
+        //     Update,
+        //     animating
+        //         .in_set(TnuaUserControlsSystemSet)
+        //         .run_if(in_state(Screen::Gameplay)),
+        // )
+        // .add_observer(player_post_spawn);;
 
-    // app.add_systems(OnEnter(Screen::Gameplay), spawn_enemy);
+    app.add_systems(OnEnter(Screen::Gameplay), spawn_enemy);
 }
+
 pub fn spawn_enemy(
     cfg: Res<Config>,
     models: Res<Models>,
@@ -29,11 +36,11 @@ pub fn spawn_enemy(
 
     let enemy_rot = Quat::from_rotation_y(PI);
     let mesh = SceneRoot(gltf.scenes[0].clone());
-    let pos = Transform::from_translation(Vec3::new(15.0, 20.0, 0.0)).with_rotation(enemy_rot);
+    let pos = Transform::from_translation(Vec3::new(20.0, 5.0, 0.0)).with_rotation(enemy_rot);
     let enemy = Enemy {
         id: Entity::PLACEHOLDER,
-        speed: cfg.player.movement.speed,
-        animation_state: EnemyAnimationState::StandIdle,
+        speed: 3.0,
+        // animation_state: AnimationState::StandIdle,
         ..default()
     };
 
@@ -44,11 +51,16 @@ pub fn spawn_enemy(
             StateScoped(Screen::Gameplay),
             pos,
             enemy,
-            // input context
+            // tnua stuff
             (
-                GameplayCtx,
-                CurrentCtx(Context::Gameplay),
-                Actions::<GameplayCtx>::default(),
+                TnuaController::default(),
+                // Tnua can fix the rotation, but the character will still get rotated before it can do so.
+                // By locking the rotation we can prevent this.
+                LockedAxes::ROTATION_LOCKED.unlock_rotation_y(),
+                // TnuaAnimatingState::<AnimationState>::default(),
+                // TnuaSimpleAirActionsCounter::default(),
+                // A sensor shape is not strictly necessary, but without it we'll get weird results.
+                TnuaAvian3dSensorShape(collider.clone()),
             ),
             // physics
             (
@@ -56,13 +68,14 @@ pub fn spawn_enemy(
                 RigidBody::Dynamic,
                 // Friction::ZERO.with_combine_rule(CoefficientCombine::Multiply),
             ),
-            JumpTimer(Timer::from_seconds(cfg.timers.jump, TimerMode::Repeating)),
+            // JumpTimer(Timer::from_seconds(cfg.timers.jump, TimerMode::Repeating)),
             StepTimer(Timer::from_seconds(cfg.timers.step, TimerMode::Repeating)),
             InheritedVisibility::default(), // silence the warning because of adding SceneRoot as a child
         ))
         // spawn character mesh as child to adjust mesh position relative to the player origin
         .with_children(|parent| {
             let mut e = parent.spawn((Transform::from_xyz(0.0, -1.5, 0.0), mesh));
+            // e.observe(prepare_animations);
 
             // DEBUG
             // let collider_mesh = Mesh::from(Capsule3d::new(

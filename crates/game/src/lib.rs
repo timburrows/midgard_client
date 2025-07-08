@@ -14,6 +14,7 @@ pub mod camera;
 #[cfg(feature = "dev_native")]
 pub mod dev_tools;
 pub mod player;
+pub mod enemy;
 pub mod sound;
 
 pub use camera::*;
@@ -24,6 +25,7 @@ pub fn plugin(app: &mut App) {
         camera::plugin,
         scene::plugin,
         player::plugin,
+        enemy::plugin,
         sound::plugin,
         #[cfg(feature = "dev_native")]
         dev_tools::plugin,

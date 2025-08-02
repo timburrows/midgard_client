@@ -9,6 +9,9 @@ pub struct Player {
     pub animation_state: AnimationState,
     pub animations: HashMap<String, AnimationNodeIndex>,
     pub target_position: Option<Vec3>,
+
+    pub attribs: Attributes,
+    pub comp_attribs: ComputedAttributes,
 }
 
 impl Default for Player {
@@ -19,6 +22,9 @@ impl Default for Player {
             animation_state: AnimationState::StandIdle,
             animations: HashMap::new(),
             target_position: None,
+            
+            attribs: Attributes::default(),
+            comp_attribs: ComputedAttributes::default(),
         }
     }
 }

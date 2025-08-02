@@ -1,4 +1,3 @@
-use bevy::color::palettes::css::CRIMSON;
 use super::*;
 use bevy_tnua::{
     builtins::{TnuaBuiltinCrouch, TnuaBuiltinDash},
@@ -27,15 +26,15 @@ fn movement(
     cfg: Res<Config>,
     actions: Single<&Actions<GameplayCtx>>,
     mut ground_click_evt: EventReader<GroundClickEvent>,
-    camera: Query<&Transform, With<SceneCamera>>,
     mut player_query: Query<(&mut Player, &mut TnuaController, &mut StepTimer, &Transform)>,
 ) -> Result {
     let actions = actions.into_inner();
 
-    let mut gizmo = GizmoAsset::new();
-    gizmo.sphere(Isometry3d::IDENTITY, 0.5, CRIMSON);
+    let mut desired_velocity = Vec3::ZERO;
+    let mut desired_forward: Option<Dir3> = None;
 
     let Ok((mut player, mut controller, mut step_timer, transform)) = player_query.single_mut() else {
+        error!("No player found");
         return Ok(());
     };
 
@@ -45,29 +44,36 @@ fn movement(
 
     if let Some(target_position) = player.target_position {
         let mut direction = target_position - transform.translation;
-
         let distance = direction.xz().length();
-        if distance <= 0.05 {
-            controller.basis(TnuaBuiltinWalk {
-                desired_velocity: Vec3::ZERO,
-                desired_forward: None,
-                ..default()
-            });
-
-            player.target_position = None;
-            return Ok(());
-        }
-
         direction = direction.normalize_or_zero();
-        controller.basis(builtin_walk(player.speed, direction));
 
-    } else {
-        let cam_transform = camera.single()?;
-        let input_value = actions.value::<Navigate>()?.as_axis2d();
-        let direction = cam_transform.movement_direction(input_value);
+        desired_velocity = direction * player.speed;
+        desired_forward = Dir3::new(direction).ok();
 
-        controller.basis(builtin_walk(player.speed, direction));
-    }
+        if distance <= 0.05 {
+            player.target_position = None;
+        }
+    };
+
+    controller.basis(
+        TnuaBuiltinWalk {
+            float_height: FLOAT_HEIGHT,
+            cling_distance: FLOAT_HEIGHT + 0.01, // Slightly higher than float_height for a bit of "give".
+            spring_strength: 500.0,              // Stronger spring for a more grounded feel.
+            spring_dampening: 1.0,               // Slightly reduced dampening for a more responsive spring.
+            acceleration: 80.0,                  // Increased acceleration for snappier movement starts and stops.
+            air_acceleration: 30.0,              // Allow for some air control, but less than ground.
+            free_fall_extra_gravity: 70.0,       // Slightly increased for a less floaty fall.
+            tilt_offset_angvel: 7.0,             // Increased for a slightly faster righting response.
+            tilt_offset_angacl: 700.0,           // Increased acceleration to reach the target righting speed.
+            turning_angvel: 12.0,                // Increased for more responsive turning.
+
+            desired_velocity,
+            desired_forward,
+
+            ..default()
+        }
+    );
 
     // Check if crouch is currently active and apply TnuaBuiltinCrouch as an action
     if actions.value::<Crouch>()?.as_bool() {
@@ -97,24 +103,6 @@ fn movement(
     }
 
     Ok(())
-}
-
-fn builtin_walk(player_speed: f32, direction: Vec3) -> TnuaBuiltinWalk {
-    TnuaBuiltinWalk {
-        float_height: 0.5,
-        cling_distance: FLOAT_HEIGHT + 0.01, // Slightly higher than float_height for a bit of "give".
-        spring_strength: 500.0,              // Stronger spring for a more grounded feel.
-        spring_dampening: 1.0,               // Slightly reduced dampening for a more responsive spring.
-        acceleration: 80.0,                  // Increased acceleration for snappier movement starts and stops.
-        air_acceleration: 30.0,              // Allow for some air control, but less than ground.
-        free_fall_extra_gravity: 70.0,       // Slightly increased for a less floaty fall.
-        tilt_offset_angvel: 7.0,             // Increased for a slightly faster righting response.
-        tilt_offset_angacl: 700.0,           // Increased acceleration to reach the target righting speed.
-        turning_angvel: 12.0,                // Increased for more responsive turning.
-        desired_velocity: direction * player_speed,
-        desired_forward: Dir3::new(direction).ok(),
-        ..Default::default()
-    }
 }
 
 fn handle_sprint_in(

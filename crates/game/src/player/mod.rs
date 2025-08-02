@@ -74,7 +74,6 @@ pub fn spawn_player(
                 Actions::<GameplayCtx>::default(),
             ),
             ThirdPersonCameraTarget,
-            // tnua stuff
             (
                 TnuaController::default(),
                 // Tnua can fix the rotation, but the character will still get rotated before it can do so.

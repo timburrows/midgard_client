@@ -9,6 +9,7 @@ use bevy_seedling::prelude::*;
 use bevy_tnua::prelude::*;
 use models::*;
 use scene::*;
+use camera::*;
 
 pub mod camera;
 #[cfg(feature = "dev_native")]
@@ -16,8 +17,8 @@ pub mod dev_tools;
 pub mod player;
 pub mod enemy;
 pub mod sound;
+pub mod combat;
 
-pub use camera::*;
 
 pub fn plugin(app: &mut App) {
     app.add_plugins((
@@ -26,6 +27,7 @@ pub fn plugin(app: &mut App) {
         scene::plugin,
         player::plugin,
         enemy::plugin,
+        combat::plugin,
         sound::plugin,
         #[cfg(feature = "dev_native")]
         dev_tools::plugin,

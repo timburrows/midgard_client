@@ -1,7 +1,10 @@
 use asset_loading::*;
+use avian3d::math::TAU;
 use avian3d::prelude::*;
 use bevy::gltf::GltfMesh;
 use bevy::prelude::*;
+use bevy_tnua::builtins::TnuaBuiltinWalk;
+use bevy_tnua::prelude::TnuaController;
 use models::*;
 
 mod skybox;
@@ -24,9 +27,12 @@ pub fn plugin(app: &mut App) {
         bevy_fix_gltf_coordinate_system::FixGltfCoordinateSystemPlugin,
         skybox::plugin,
     ))
-        .add_systems(OnEnter(Screen::Title), setup)
-        .add_systems(Update, ground_click_emitter.run_if(in_state(Screen::Gameplay)))
-        .add_event::<GroundClickEvent>();
+    .add_systems(OnEnter(Screen::Title), setup)
+    .add_systems(
+        Update,
+        (ground_click_emitter).run_if(in_state(Screen::Gameplay)),
+    )
+    .add_event::<GroundClickEvent>();
 }
 
 pub fn setup(
@@ -54,7 +60,7 @@ pub fn setup(
         Transform::from_xyz(0.0, -1.0, 0.0),
         RigidBody::Static,
         Collider::trimesh_from_mesh(&Mesh::from(shape)).unwrap_or(Collider::half_space(Vec3::Y)),
-        Ground
+        Ground,
     ));
 
     // Rock
@@ -156,11 +162,7 @@ fn ground_click_emitter(
 
         let surface_y = transform.translation.y + (transform.scale.y / 2.0);
         let position = Vec3::new(click_position.x, surface_y, click_position.z);
-        
-        ground_click_events.write(GroundClickEvent {
-            position,
-        });
+
+        ground_click_events.write(GroundClickEvent { position });
     }
 }
-
-

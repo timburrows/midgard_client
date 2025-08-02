@@ -1,24 +1,15 @@
 use super::*;
-use bevy_tnua_avian3d::{TnuaAvian3dPlugin, TnuaAvian3dSensorShape};
+use bevy_tnua_avian3d::{TnuaAvian3dSensorShape};
 use std::{f32::consts::PI, time::Duration};
 
 mod animation;
 mod behaviours;
 
 pub use animation::*;
+pub use combat::*;
 
 pub fn plugin(app: &mut App) {
-    app.add_plugins((
-        behaviours::plugin,
-    ));
-        // .add_systems(
-        //     Update,
-        //     animating
-        //         .in_set(TnuaUserControlsSystemSet)
-        //         .run_if(in_state(Screen::Gameplay)),
-        // )
-        // .add_observer(player_post_spawn);;
-
+    app.add_plugins((behaviours::plugin,));
     app.add_systems(OnEnter(Screen::Gameplay), spawn_enemy);
 }
 
@@ -39,19 +30,27 @@ pub fn spawn_enemy(
     let pos = Transform::from_translation(Vec3::new(20.0, 5.0, 0.0)).with_rotation(enemy_rot);
     let enemy = Enemy {
         id: Entity::PLACEHOLDER,
-        speed: 3.0,
         // animation_state: AnimationState::StandIdle,
+        attributes: Attributes::default(),
+        comp_attribs: ComputedAttributes {
+            move_speed: 3.0,
+            attack: 2,
+            attack_range: 2.0,
+            attack_rate: 1.0,
+            ..default()
+        },
         ..default()
     };
 
     let collider = Collider::capsule(cfg.player.hitbox.radius, cfg.player.hitbox.height);
+    let attack_timer = AttackTimer(Timer::from_seconds(enemy.comp_attribs.attack_rate, TimerMode::Once));
+    // attack_timer.0.pause();
 
     commands
         .spawn((
             StateScoped(Screen::Gameplay),
             pos,
-            enemy,
-            // tnua stuff
+            enemy.clone(),
             (
                 TnuaController::default(),
                 // Tnua can fix the rotation, but the character will still get rotated before it can do so.
@@ -68,8 +67,9 @@ pub fn spawn_enemy(
                 RigidBody::Dynamic,
                 // Friction::ZERO.with_combine_rule(CoefficientCombine::Multiply),
             ),
-            // JumpTimer(Timer::from_seconds(cfg.timers.jump, TimerMode::Repeating)),
+            // Timers
             StepTimer(Timer::from_seconds(cfg.timers.step, TimerMode::Repeating)),
+            attack_timer,
             InheritedVisibility::default(), // silence the warning because of adding SceneRoot as a child
         ))
         // spawn character mesh as child to adjust mesh position relative to the player origin

@@ -7,7 +7,7 @@ pub fn plugin(app: &mut App) {
         handle_attack_event.run_if(in_state(Screen::Gameplay)),
     );
 
-    // app.add_systems(OnEnter(Screen::Gameplay), spawn_enemy);
+    app.add_event::<AttackEvent>();
 }
 
 #[derive(Component, Debug)]
@@ -23,59 +23,85 @@ impl AttackRateTimer {
     }
 }
 
+#[derive(Event, Debug)]
+pub struct AttackEvent {
+    pub attacker: Entity,
+    pub target: Entity,
+}
+
 fn handle_attack_event(
-    mut enemy_query: Query<(&Enemy, &Transform, &mut AttackRateTimer, &Collider)>,
-    mut player_query: Query<(&mut Player, &Transform, &Collider)>,
+    mut attack_event: EventReader<AttackEvent>,
+    mut combatant_query: Query<(
+        &Transform,
+        &Collider,
+        &mut ComputedAttributes,
+        Option<&mut AttackRateTimer>,
+    )>,
     mut cmd: Commands,
     time: Res<Time>,
 ) {
-    for (enemy, enemy_transform, mut attack_timer, enemy_collider) in enemy_query.iter_mut() {
-        for (mut player, player_transform, player_collider) in player_query.iter_mut() {
-            let dist = enemy_transform
-                .translation
-                .xz()
-                .distance(player_transform.translation.xz());
+    let Some(attack_evt) = attack_event.read().next() else {
+        return;
+    };
 
-            let player_radius = player_collider
-                .shape()
-                .0
-                .as_capsule()
-                .map_or_else(|| default(), |c| c.radius);
+    let Ok([attacker_bundle, target_bundle]) =
+        combatant_query.get_many_mut([attack_evt.attacker, attack_evt.target])
+    else {
+        return;
+    };
 
-            let enemy_radius = enemy_collider
-                .shape()
-                .0
-                .as_capsule()
-                .map_or_else(|| default(), |c| c.radius);
+    let (attacker_transform, attacker_collider, attacker_attribs, attacker_timer_opt) = attacker_bundle;
+    let (target_transform, target_collider, mut target_attribs, _) = target_bundle;
+    
+    let dist = attacker_transform
+        .translation
+        .xz()
+        .distance(target_transform.translation.xz());
 
-            const COLLISION_BUFFER: f32 = 0.5;
-            let collision_dist = enemy_radius + player_radius + COLLISION_BUFFER;
-            let is_in_range = dist <= collision_dist + enemy.comp_attribs.attack_range;
+    let attacker_radius = get_capsule_radius(attacker_collider);
+    let target_radius = get_capsule_radius(target_collider);
 
-            if is_in_range {
-                if !attack_timer.0.finished() {
-                    attack_timer.0.tick(time.delta());
-                }
+    const COLLISION_BUFFER: f32 = 0.5;
+    let collider_dist = attacker_radius + target_radius + COLLISION_BUFFER;
+    let attack_range = attacker_attribs.attack_range;
+    let is_in_range = dist <= collider_dist + attack_range;
 
-                if attack_timer.0.finished() {
-                    player.comp_attribs.health.hp -= enemy.comp_attribs.attack;
+    if is_in_range {
+        if let Some(mut timer) = attacker_timer_opt {
+            if !timer.0.finished() {
+                timer.0.tick(time.delta());
+            }
 
-                    info!(
-                        "Enemy deals {} damage to Player, remaining health {}",
-                        enemy.comp_attribs.attack, player.comp_attribs.health.hp
-                    );
+            if timer.0.finished() {
+                let attack_damage = attacker_attribs.attack;
+                target_attribs.health.hp -= attack_damage;
 
-                    if player.comp_attribs.health.hp <= 0.0 {
-                        info!("Player has died");
-                        
-                        // note: might want to make this an event 
-                        // so it can be broadcast to different systems
-                        cmd.entity(player.id).despawn();
-                    } else {
-                        attack_timer.0.reset();
-                    }
+                info!(
+                    "Deals {} damage, remaining health {}",
+                    attack_damage, target_attribs.health.hp
+                );
+
+                if target_attribs.health.hp <= 0.0 {
+                    info!("Target has died");
+                    cmd.entity(attack_evt.target).despawn();
+                } else {
+                    timer.0.reset();
                 }
             }
+        }
+    }
+}
+
+// fixme: this doesn't really belong here if we are going to treat this as shared code
+pub fn get_capsule_radius(collider: &Collider) -> f32 {
+    let shape = collider.shape();
+    let capsule_result = shape.0.as_capsule();
+
+    match capsule_result {
+        Some(capsule) => capsule.radius,
+        None => {
+            error!("Entity collider is not a capsule shape");
+            0.0
         }
     }
 }

@@ -1,5 +1,5 @@
 use super::*;
-use bevy_tnua_avian3d::{TnuaAvian3dSensorShape};
+use bevy_tnua_avian3d::TnuaAvian3dSensorShape;
 use std::{f32::consts::PI, time::Duration};
 
 mod animation;
@@ -11,6 +11,7 @@ pub use combat::*;
 pub fn plugin(app: &mut App) {
     app.add_plugins((behaviours::plugin,));
     app.add_systems(OnEnter(Screen::Gameplay), spawn_enemy);
+    app.add_observer(enemy_post_spawn);
 }
 
 pub fn spawn_enemy(
@@ -31,26 +32,30 @@ pub fn spawn_enemy(
     let enemy = Enemy {
         id: Entity::PLACEHOLDER,
         // animation_state: AnimationState::StandIdle,
-        attributes: Attributes::default(),
-        comp_attribs: ComputedAttributes {
-            move_speed: 3.0,
-            attack: 2.0,
-            attack_range: 2.0,
-            attack_rate: 1.6,
-            health: Health::new(10.0),
-            ..default()
-        },
         ..default()
     };
 
     let collider = Collider::capsule(cfg.player.hitbox.radius, cfg.player.hitbox.height);
-    let attack_timer = AttackRateTimer::new(enemy.comp_attribs.attack_rate);
+
+    let attribs = Attributes::default();
+    let comp_attribs = ComputedAttributes {
+        move_speed: 3.0,
+        attack: 2.0,
+        attack_range: 2.0,
+        attack_rate: 1.6,
+        health: Health::new(10.0),
+        ..default()
+    };
+
+    let attack_timer = AttackRateTimer::new(comp_attribs.attack_rate);
 
     commands
         .spawn((
             StateScoped(Screen::Gameplay),
             pos,
             enemy.clone(),
+            attribs,
+            comp_attribs,
             (
                 TnuaController::default(),
                 // Tnua can fix the rotation, but the character will still get rotated before it can do so.
@@ -91,7 +96,15 @@ pub fn spawn_enemy(
             //     Transform::from_xyz(0.0, -0.1, 0.0),
             // ));
             // DEBUG
-        });
+        })
+        .observe(enemy_post_spawn);
 
     Ok(())
+}
+
+fn enemy_post_spawn(on: Trigger<OnAdd, Enemy>, mut enemies: Query<&mut Enemy>) {
+    let enemy = on.target();
+    if let Ok(mut e) = enemies.get_mut(enemy) {
+        e.id = enemy; // update enemy id with spawned entity
+    }
 }

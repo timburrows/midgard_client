@@ -1,6 +1,7 @@
 use super::*;
 
-#[derive(Debug, Reflect, Copy, Clone)]
+#[derive(Component, Debug, Reflect, Copy, Clone)]
+#[reflect(Component)]
 pub struct Attributes {
     strength: i32,
     dexterity: i32,
@@ -20,7 +21,8 @@ impl Default for Attributes {
     }
 }
 
-#[derive(Debug, Reflect, Copy, Clone)]
+#[derive(Component, Debug, Reflect, Copy, Clone)]
+#[reflect(Component)]
 pub struct ComputedAttributes {
     // todo: maybe these shouldn't be pub if there are multiple
     // sources of what affects their value.

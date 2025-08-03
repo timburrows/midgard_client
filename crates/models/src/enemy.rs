@@ -8,9 +8,6 @@ pub struct Enemy {
     pub target_position: Option<Vec3>,
     pub target_entity: Option<Entity>,
 
-    pub attributes: Attributes,
-    pub comp_attribs: ComputedAttributes,
-
     // pub animation_state: AnimationState,
     // pub animations: HashMap<String, AnimationNodeIndex>,
 }
@@ -24,9 +21,6 @@ impl Default for Enemy {
             aggro_radius: 14.0,
             target_position: None,
             target_entity: None,
-
-            attributes: Attributes::default(),
-            comp_attribs: ComputedAttributes::default(),
         }
     }
 }

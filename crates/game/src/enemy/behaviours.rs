@@ -88,15 +88,7 @@ fn update_target_position(
     mut movement_evt: EventReader<MovementEvent>,
     player_query: Query<&Transform, With<Player>>,
     mut enemy_query: Query<&mut Enemy, With<Enemy>>,
-    mut target_update_timer: ResMut<PlayerTargetUpdateTimer>,
-    time: Res<Time>,
 ) -> Result {
-    // target_update_timer.0.tick(time.delta());
-    //
-    // if !target_update_timer.0.just_finished() {
-    //     return Ok(());
-    // }
-
     let Some(movement_evt) = movement_evt.read().next() else {
         return Ok(());
     };

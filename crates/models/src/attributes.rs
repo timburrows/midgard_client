@@ -25,10 +25,10 @@ pub struct ComputedAttributes {
     // todo: maybe these shouldn't be pub if there are multiple
     // sources of what affects their value.
     // Example: `attack` might be a combination of strength and dexterity
-    pub attack: i32,
-    pub defence: i32,
-    pub magic_defence: i32,
-    pub magic_attack: i32,
+    pub attack: f32,
+    pub defence: f32,
+    pub magic_defence: f32,
+    pub magic_attack: f32,
     pub hit_rate: f32,
     pub dodge_rate: f32,
     pub crit_rate: f32,
@@ -43,10 +43,10 @@ pub struct ComputedAttributes {
 impl Default for ComputedAttributes {
     fn default() -> Self {
         ComputedAttributes {
-            attack: 1,
-            defence: 0,
-            magic_defence: 0,
-            magic_attack: 1,
+            attack: 1.0,
+            defence: 0.0,
+            magic_defence: 0.0,
+            magic_attack: 1.0,
             hit_rate: 1.0,
             dodge_rate: 0.0,
             crit_rate: 0.0,
@@ -54,32 +54,38 @@ impl Default for ComputedAttributes {
             attack_range: 1.0,
             move_speed: 10.0,
 
-            health: Health::new(1),
-            mana: Mana::new(1),
+            health: Health::new(1.0),
+            mana: Mana::new(1.0),
         }
     }
 }
 
 #[derive(Debug, Reflect, Default, Copy, Clone)]
 pub struct Health {
-    pub max_hp: i32,
-    pub hp: i32,
+    pub max_hp: f32,
+    pub hp: f32,
 }
 
 impl Health {
-    pub fn new(max_hp: i32) -> Self {
-        Self { max_hp, hp: max_hp }
+    pub fn new(max_hp: f32) -> Self {
+        Self {
+            max_hp,
+            hp: max_hp
+        }
     }
 }
 
 #[derive(Debug, Reflect, Default, Copy, Clone)]
 pub struct Mana {
-    pub max_mp: i32,
-    pub mp: i32,
+    pub max_mp: f32,
+    pub mp: f32,
 }
 
 impl Mana {
-    pub fn new(max_mp: i32) -> Self {
-        Self { max_mp, mp: max_mp }
+    pub fn new(max_mp: f32) -> Self {
+        Self {
+            max_mp,
+            mp: max_mp
+        }
     }
 }

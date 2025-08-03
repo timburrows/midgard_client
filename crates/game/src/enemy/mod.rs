@@ -34,17 +34,17 @@ pub fn spawn_enemy(
         attributes: Attributes::default(),
         comp_attribs: ComputedAttributes {
             move_speed: 3.0,
-            attack: 2,
+            attack: 2.0,
             attack_range: 2.0,
-            attack_rate: 1.0,
+            attack_rate: 1.6,
+            health: Health::new(10.0),
             ..default()
         },
         ..default()
     };
 
     let collider = Collider::capsule(cfg.player.hitbox.radius, cfg.player.hitbox.height);
-    let attack_timer = AttackTimer(Timer::from_seconds(enemy.comp_attribs.attack_rate, TimerMode::Once));
-    // attack_timer.0.pause();
+    let attack_timer = AttackRateTimer::new(enemy.comp_attribs.attack_rate);
 
     commands
         .spawn((

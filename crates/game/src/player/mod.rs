@@ -57,6 +57,15 @@ pub fn spawn_player(
         id: Entity::PLACEHOLDER,
         speed: cfg.player.movement.speed,
         animation_state: AnimationState::StandIdle,
+        attribs: Attributes::default(),
+        comp_attribs: ComputedAttributes {
+            move_speed: cfg.player.movement.speed,
+            attack: 5.0,
+            attack_rate: 1.0,
+            attack_range: 2.0,
+            health: Health::new(30.0),
+            ..default()
+        },
         ..default()
     };
 

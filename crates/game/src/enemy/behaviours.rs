@@ -1,4 +1,5 @@
 use super::*;
+use event::types::{PositionChangeEvent, AttackEvent};
 
 pub const FLOAT_HEIGHT: f32 = 0.5;
 pub const IDLE_TO_RUN_TRESHOLD: f32 = 0.01;
@@ -7,80 +8,16 @@ pub fn plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            proximity_emitter.run_if(transform_changed),
-            movement_emitter,
             update_target_position,
             move_to_pos,
             attack_player,
         )
             .run_if(in_state(Screen::Gameplay)),
     );
-
-    app.add_event::<ProximityEvent>()
-        .add_event::<MovementEvent>();
-}
-
-#[derive(Event)]
-pub struct ProximityEvent {
-    player_entity: Entity,
-    enemy_entity: Entity,
-}
-
-#[derive(Event)]
-pub struct MovementEvent {
-    pub entity: Entity,
-    pub target: Entity,
-}
-
-impl MovementEvent {
-    pub fn new(entity: Entity, target: Entity) -> Self {
-        Self { entity, target }
-    }
-}
-
-fn proximity_emitter(
-    player_query: Query<(&Transform, Entity), With<Player>>,
-    enemy_query: Query<(&Transform, &Enemy, Entity)>,
-    mut proximity_evt_writer: EventWriter<ProximityEvent>,
-) {
-    for (enemy_transform, enemy, enemy_entity) in enemy_query.iter() {
-        for (player_transform, player_entity) in player_query.iter() {
-            let dist = enemy_transform
-                .translation
-                .xy()
-                .distance(player_transform.translation.xy());
-
-            if dist <= enemy.aggro_radius {
-                proximity_evt_writer.write(ProximityEvent {
-                    player_entity,
-                    enemy_entity,
-                });
-            }
-        }
-    }
-}
-
-fn transform_changed(
-    player_query: Query<(), (With<Player>, Changed<GlobalTransform>)>,
-    enemy_query: Query<(), (With<Enemy>, Changed<GlobalTransform>)>,
-) -> bool {
-    !player_query.is_empty() || !enemy_query.is_empty()
-}
-
-fn movement_emitter(
-    mut proximity_evt_reader: EventReader<ProximityEvent>,
-    mut movement_event_writer: EventWriter<MovementEvent>,
-) {
-    let Some(proximity_evt) = proximity_evt_reader.read().next() else {
-        return;
-    };
-
-    let move_evt = MovementEvent::new(proximity_evt.enemy_entity, proximity_evt.player_entity);
-    movement_event_writer.write(move_evt);
 }
 
 fn update_target_position(
-    mut movement_evt: EventReader<MovementEvent>,
+    mut movement_evt: EventReader<PositionChangeEvent>,
     player_query: Query<&Transform, With<Player>>,
     mut enemy_query: Query<&mut Enemy, With<Enemy>>,
 ) -> Result {
@@ -135,17 +72,13 @@ fn move_to_pos(
             direction = direction.normalize_or_zero();
 
             let player_collider = player_query.single()?;
-            let player_radius = player_collider
-                .shape()
-                .0
-                .as_capsule()
-                .map_or_else(|| default(), |c| c.radius);
+            let Some(player_radius) = utils::get_capsule_radius(player_collider) else {
+                continue;
+            };
 
-            let enemy_radius = enemy_collider
-                .shape()
-                .0
-                .as_capsule()
-                .map_or_else(|| default(), |c| c.radius);
+            let Some(enemy_radius) = utils::get_capsule_radius(enemy_collider) else {
+                continue;
+            };
 
             const COLLISION_BUFFER: f32 = 0.5;
             let collision_dist = enemy_radius + player_radius + COLLISION_BUFFER;
@@ -206,8 +139,13 @@ fn attack_player(
         let direction = player_transform.translation - enemy_transform.translation;
         let dist = direction.xz().length();
 
-        let player_radius = get_capsule_radius(player_collider);
-        let enemy_radius = get_capsule_radius(enemy_collider);
+        let Some(player_radius) = utils::get_capsule_radius(player_collider) else {
+            continue;
+        };
+
+        let Some(enemy_radius) = utils::get_capsule_radius(enemy_collider) else {
+            continue;
+        };
 
         // note: we do this same check in the combat module to prohibit out-of-range attacks
         // however, later logic will process attack decisions based on multiple ranges (e.g spells, skills)

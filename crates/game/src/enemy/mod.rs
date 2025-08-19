@@ -1,17 +1,14 @@
 use super::*;
 use bevy_tnua_avian3d::TnuaAvian3dSensorShape;
 use std::{f32::consts::PI, time::Duration};
+use combat::*;
 
 mod animation;
 mod behaviours;
 
-pub use animation::*;
-pub use combat::*;
-
 pub fn plugin(app: &mut App) {
-    app.add_plugins((behaviours::plugin,));
+    app.add_plugins(behaviours::plugin);
     app.add_systems(OnEnter(Screen::Gameplay), spawn_enemy);
-    app.add_observer(enemy_post_spawn);
 }
 
 pub fn spawn_enemy(
@@ -79,7 +76,7 @@ pub fn spawn_enemy(
         ))
         // spawn character mesh as child to adjust mesh position relative to the player origin
         .with_children(|parent| {
-            let mut e = parent.spawn((Transform::from_xyz(0.0, -1.5, 0.0), mesh));
+            parent.spawn((Transform::from_xyz(0.0, -1.5, 0.0), mesh));
             // e.observe(prepare_animations);
 
             // DEBUG
@@ -96,15 +93,7 @@ pub fn spawn_enemy(
             //     Transform::from_xyz(0.0, -0.1, 0.0),
             // ));
             // DEBUG
-        })
-        .observe(enemy_post_spawn);
+        });
 
     Ok(())
-}
-
-fn enemy_post_spawn(on: Trigger<OnAdd, Enemy>, mut enemies: Query<&mut Enemy>) {
-    let enemy = on.target();
-    if let Ok(mut e) = enemies.get_mut(enemy) {
-        e.id = enemy; // update enemy id with spawned entity
-    }
 }

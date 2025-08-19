@@ -1,13 +1,15 @@
 use super::*;
 use std::time::Duration;
+use event::types::AttackEvent;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(
         Update,
-        handle_attack_event.run_if(in_state(Screen::Gameplay)),
+        (
+            tick_attack_timers.run_if(in_state(Screen::Gameplay)),
+            handle_attack_event.run_if(in_state(Screen::Gameplay)),
+        ),
     );
-
-    app.add_event::<AttackEvent>();
 }
 
 #[derive(Component, Debug)]
@@ -18,90 +20,102 @@ impl AttackRateTimer {
     // before an attack lands, and begin ticking afterward
     pub fn new(secs: f32) -> Self {
         let mut timer = Timer::from_seconds(secs, TimerMode::Once);
-        timer.tick(Duration::from_secs_f32(secs + 1.0));
+        timer.set_elapsed(Duration::from_secs_f32(secs));
         Self(timer)
     }
 }
 
-#[derive(Event, Debug)]
-pub struct AttackEvent {
-    pub attacker: Entity,
-    pub target: Entity,
+fn tick_attack_timers(mut q: Query<&mut AttackRateTimer>, time: Res<Time>) {
+    for mut t in &mut q {
+        t.0.tick(time.delta());
+    }
 }
 
 fn handle_attack_event(
-    mut attack_event: EventReader<AttackEvent>,
-    mut combatant_query: Query<(
+    mut ev: EventReader<AttackEvent>,
+    mut combatant_q: Query<(
         &Transform,
         &Collider,
         &mut ComputedAttributes,
-        Option<&mut AttackRateTimer>,
+        Option<&Player>,
+        &mut AttackRateTimer,
     )>,
     mut cmd: Commands,
-    time: Res<Time>,
 ) {
-    let Some(attack_evt) = attack_event.read().next() else {
-        return;
-    };
+    for AttackEvent { attacker, target } in ev.read().copied() {
+        let Ok([atkr_bundle, tgt_bundle]) = combatant_q.get_many_mut([attacker, target]) else {
+            return;
+        };
 
-    let Ok([attacker_bundle, target_bundle]) =
-        combatant_query.get_many_mut([attack_evt.attacker, attack_evt.target])
-    else {
-        return;
-    };
+        let (atkr_tfm, atkr_collider, atkr_cattribs, atkr_is_player, mut atkr_atkrate_timer) =
+            atkr_bundle;
 
-    let (attacker_transform, attacker_collider, attacker_attribs, attacker_timer_opt) = attacker_bundle;
-    let (target_transform, target_collider, mut target_attribs, _) = target_bundle;
-    
-    let dist = attacker_transform
-        .translation
-        .xz()
-        .distance(target_transform.translation.xz());
+        let (tgt_tfm, tgt_collider, mut tgt_cattribs, _tgt_enemy_opt, _tgt_atkrate_timer_opt) =
+            tgt_bundle;
 
-    let attacker_radius = get_capsule_radius(attacker_collider);
-    let target_radius = get_capsule_radius(target_collider);
+        if !is_in_attack_range(
+            atkr_tfm,
+            atkr_collider,
+            atkr_cattribs.attack_range,
+            tgt_tfm,
+            tgt_collider,
+        ) {
+            continue;
+        }
 
-    const COLLISION_BUFFER: f32 = 0.5;
-    let collider_dist = attacker_radius + target_radius + COLLISION_BUFFER;
-    let attack_range = attacker_attribs.attack_range;
-    let is_in_range = dist <= collider_dist + attack_range;
+        // Cooldown gate
+        if !atkr_atkrate_timer.0.finished() {
+            continue;
+        }
 
-    if is_in_range {
-        if let Some(mut timer) = attacker_timer_opt {
-            if !timer.0.finished() {
-                timer.0.tick(time.delta());
-            }
+        // Apply damage
+        let dmg = atkr_cattribs.attack;
+        let died = apply_damage(&mut tgt_cattribs, dmg);
 
-            if timer.0.finished() {
-                let attack_damage = attacker_attribs.attack;
-                target_attribs.health.hp -= attack_damage;
+        let (atkr_type, tgt_type) = if let Some(_) = atkr_is_player {
+            ("Player", "Enemy")
+        } else {
+            ("Enemy", "Player")
+        };
 
-                info!(
-                    "Deals {} damage, remaining health {}",
-                    attack_damage, target_attribs.health.hp
-                );
+        info!(
+            "{atkr_type}({attacker}) deals {dmg} to {tgt_type}({target}); remaining hp {}",
+            tgt_cattribs.health.hp
+        );
 
-                if target_attribs.health.hp <= 0.0 {
-                    info!("Target has died");
-                    cmd.entity(attack_evt.target).despawn();
-                } else {
-                    timer.0.reset();
-                }
-            }
+        if died {
+            info!("Target({target:?}) died");
+            cmd.entity(target).despawn();
+        } else {
+            // Re-arm cooldown after a successful hit
+            atkr_atkrate_timer.0.reset();
         }
     }
 }
 
-// fixme: this doesn't really belong here if we are going to treat this as shared code
-pub fn get_capsule_radius(collider: &Collider) -> f32 {
-    let shape = collider.shape();
-    let capsule_result = shape.0.as_capsule();
+fn is_in_attack_range(
+    atkr_tfm: &Transform,
+    atkr_collider: &Collider,
+    atkr_range: f32,
+    tgt_tfm: &Transform,
+    tgt_collider: &Collider,
+) -> bool {
+    const COLLISION_BUFFER: f32 = 0.5;
 
-    match capsule_result {
-        Some(capsule) => capsule.radius,
-        None => {
-            error!("Entity collider is not a capsule shape");
-            0.0
-        }
-    }
+    let Some(atkr_radius) = utils::get_capsule_radius(atkr_collider) else {
+        return false;
+    };
+    let Some(tgt_radius) = utils::get_capsule_radius(tgt_collider) else {
+        return false;
+    };
+
+    let planar_dist = atkr_tfm.translation.xz().distance(tgt_tfm.translation.xz());
+    let collider_dist = atkr_radius + tgt_radius + COLLISION_BUFFER;
+    planar_dist <= collider_dist + atkr_range
+}
+
+// Returns true if target health drops to 0 or less
+fn apply_damage(target: &mut ComputedAttributes, amount: f32) -> bool {
+    target.health.hp -= amount;
+    target.health.hp <= 0.0
 }

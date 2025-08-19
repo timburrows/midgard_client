@@ -22,13 +22,10 @@ pub fn prepare_animations(
             return;
         };
         
-        println!("Loading animations for player");
-
         let mut graph = AnimationGraph::new();
         let root_node = graph.root;
 
         for (name, clip) in gltf.named_animations.iter() {
-            println!("Loading animation: {}", name);
             let node_index = graph.add_clip(clip.clone(), 1.0, root_node);
             player.animations.insert(name.to_string(), node_index);
         }
@@ -56,7 +53,7 @@ pub fn animating(
     // An actual game should match the animation player and the controller. Here we cheat for
     // simplicity and use the only controller and only player.
     for (controller, mut player, mut animating_state) in player_q.iter_mut() {
-        for (mut animation_player) in animation_player.iter_mut() {
+        for mut animation_player in animation_player.iter_mut() {
             // Here we use the data from TnuaController to determine what the character is currently doing,
             // so that we can later use that information to decide which animation to play.
             // First we look at the `action_name` to determine which action (if at all) the character is currently performing:

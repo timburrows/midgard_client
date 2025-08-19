@@ -1,20 +1,12 @@
 use asset_loading::*;
-use avian3d::math::TAU;
 use avian3d::prelude::*;
 use bevy::gltf::GltfMesh;
 use bevy::prelude::*;
-use bevy_tnua::builtins::TnuaBuiltinWalk;
-use bevy_tnua::prelude::TnuaController;
 use models::*;
 
 mod skybox;
 
 pub use skybox::*;
-
-#[derive(Event)]
-pub struct GroundClickEvent {
-    pub position: Vec3,
-}
 
 #[derive(Component)]
 pub struct Ground;
@@ -27,12 +19,7 @@ pub fn plugin(app: &mut App) {
         bevy_fix_gltf_coordinate_system::FixGltfCoordinateSystemPlugin,
         skybox::plugin,
     ))
-    .add_systems(OnEnter(Screen::Title), setup)
-    .add_systems(
-        Update,
-        (ground_click_emitter).run_if(in_state(Screen::Gameplay)),
-    )
-    .add_event::<GroundClickEvent>();
+    .add_systems(OnEnter(Screen::Title), setup);
 }
 
 pub fn setup(
@@ -144,25 +131,4 @@ pub fn setup(
         brightness: 500.0,
         ..Default::default()
     });
-}
-
-fn ground_click_emitter(
-    mut click_events: EventReader<Pointer<Click>>,
-    ground_query: Query<(Entity, &Transform), With<Ground>>,
-    mut ground_click_events: EventWriter<GroundClickEvent>,
-) {
-    for click in click_events.read() {
-        let Ok((_entity, transform)) = ground_query.get(click.target) else {
-            continue;
-        };
-
-        let Some(click_position) = click.hit.position else {
-            continue;
-        };
-
-        let surface_y = transform.translation.y + (transform.scale.y / 2.0);
-        let position = Vec3::new(click_position.x, surface_y, click_position.z);
-
-        ground_click_events.write(GroundClickEvent { position });
-    }
 }

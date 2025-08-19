@@ -3,25 +3,25 @@ use bevy_tnua::{
     builtins::{TnuaBuiltinCrouch, TnuaBuiltinDash},
     control_helpers::TnuaSimpleAirActionsCounter,
 };
+use event::types::{AttackEvent, EnemyClickEvent, GroundClickEvent};
 
 pub fn plugin(app: &mut App) {
     app.add_systems(
         Update,
-        movement
-            .in_set(TnuaUserControlsSystemSet)
-            .run_if(in_state(Screen::Gameplay)),
-    )
-        .add_observer(handle_sprint_in)
+        (
+            movement.in_set(TnuaUserControlsSystemSet),
+            attack_enemy
+        ).run_if(in_state(Screen::Gameplay)),
+    );
+
+    app.add_observer(handle_sprint_in)
         .add_observer(handle_sprint_out)
         .add_observer(handle_jump)
         .add_observer(handle_dash)
-        // .add_observer(handle_attack)
         .add_observer(crouch_in)
         .add_observer(crouch_out);
 }
 
-/// Tnua configuration is tricky to grasp from the get go, this is the best demo:
-/// <https://github.com/idanarye/bevy-tnua/blob/main/demos/src/character_control_systems/platformer_control_systems.rs>
 fn movement(
     cfg: Res<Config>,
     actions: Single<&Actions<GameplayCtx>>,
@@ -33,8 +33,9 @@ fn movement(
     let mut desired_velocity = Vec3::ZERO;
     let mut desired_forward: Option<Dir3> = None;
 
-    let Ok((mut player, mut controller, mut step_timer, transform)) = player_query.single_mut() else {
-        error!("No player found");
+    let Ok((mut player, mut controller, mut step_timer, transform)) = player_query.single_mut()
+    else {
+        error!("Player not found");
         return Ok(());
     };
 
@@ -55,25 +56,23 @@ fn movement(
         }
     };
 
-    controller.basis(
-        TnuaBuiltinWalk {
-            float_height: FLOAT_HEIGHT,
-            cling_distance: FLOAT_HEIGHT + 0.01, // Slightly higher than float_height for a bit of "give".
-            spring_strength: 500.0,              // Stronger spring for a more grounded feel.
-            spring_dampening: 1.0,               // Slightly reduced dampening for a more responsive spring.
-            acceleration: 80.0,                  // Increased acceleration for snappier movement starts and stops.
-            air_acceleration: 30.0,              // Allow for some air control, but less than ground.
-            free_fall_extra_gravity: 70.0,       // Slightly increased for a less floaty fall.
-            tilt_offset_angvel: 7.0,             // Increased for a slightly faster righting response.
-            tilt_offset_angacl: 700.0,           // Increased acceleration to reach the target righting speed.
-            turning_angvel: 12.0,                // Increased for more responsive turning.
+    controller.basis(TnuaBuiltinWalk {
+        float_height: FLOAT_HEIGHT,
+        cling_distance: FLOAT_HEIGHT + 0.01, // Slightly higher than float_height for a bit of "give".
+        spring_strength: 500.0,              // Stronger spring for a more grounded feel.
+        spring_dampening: 1.0, // Slightly reduced dampening for a more responsive spring.
+        acceleration: 80.0,    // Increased acceleration for snappier movement starts and stops.
+        air_acceleration: 30.0, // Allow for some air control, but less than ground.
+        free_fall_extra_gravity: 70.0, // Slightly increased for a less floaty fall.
+        tilt_offset_angvel: 7.0, // Increased for a slightly faster righting response.
+        tilt_offset_angacl: 700.0, // Increased acceleration to reach the target righting speed.
+        turning_angvel: 12.0,  // Increased for more responsive turning.
 
-            desired_velocity,
-            desired_forward,
+        desired_velocity,
+        desired_forward,
 
-            ..default()
-        }
-    );
+        ..default()
+    });
 
     // Check if crouch is currently active and apply TnuaBuiltinCrouch as an action
     if actions.value::<Crouch>()?.as_bool() {
@@ -115,7 +114,6 @@ fn handle_sprint_in(
         if player.speed <= cfg.player.movement.speed {
             player.speed *= cfg.player.movement.sprint_factor;
         }
-        info!("Sprint started for entity: {entity}");
     }
 
     Ok(())
@@ -223,6 +221,55 @@ pub fn crouch_out(
     collider.set_scale(Vec3::ONE, 4);
     avian_sensor.0.set_scale(Vec3::ONE, 4);
     player.speed = cfg.player.movement.speed;
+
+    Ok(())
+}
+
+fn attack_enemy(
+    mut enemy_click_event: EventReader<EnemyClickEvent>,
+    mut attack_event: EventWriter<AttackEvent>,
+    enemy_query: Query<(&Enemy, &Transform, &Collider)>,
+    player_query: Query<(&Player, &ComputedAttributes, &Transform, &Collider)>,
+) -> Result {
+    const COLLISION_BUFFER: f32 = 0.5;
+
+    for enemy_click_evt in enemy_click_event.read() {
+        let Ok((enemy, enemy_transform, enemy_collider)) = enemy_query.get(enemy_click_evt.target)
+        else {
+            warn!("Invalid Enemy or no longer exists");
+            continue;
+        };
+
+        let Ok((player, player_comp_attribs, player_transform, player_collider)) =
+            player_query.get(enemy_click_evt.player)
+        else {
+            warn!("Invalid Player or no longer exists");
+            continue;
+        };
+
+        let Some(player_radius) = utils::get_capsule_radius(player_collider) else {
+            error!("Player has no capsule");
+            continue;
+        };
+
+        let Some(enemy_radius) = utils::get_capsule_radius(enemy_collider) else {
+            error!("Enemy has no capsule");
+            continue;
+        };
+
+        let direction = player_transform.translation - enemy_transform.translation;
+        let dist = direction.xz().length();
+
+        let collider_dist = enemy_radius + player_radius + COLLISION_BUFFER;
+        let is_in_range = dist <= collider_dist + player_comp_attribs.attack_range;
+
+        if is_in_range {
+            attack_event.write(AttackEvent {
+                attacker: player.id,
+                target: enemy.id,
+            });
+        }
+    }
 
     Ok(())
 }

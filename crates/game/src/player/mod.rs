@@ -8,8 +8,8 @@ use std::{f32::consts::PI, time::Duration};
 mod animation;
 mod control;
 
-pub use animation::*;
-pub use control::*;
+use animation::*;
+use combat::*;
 
 pub const IDLE_TO_RUN_TRESHOLD: f32 = 0.01;
 pub const FLOAT_HEIGHT: f32 = 0.5;
@@ -29,8 +29,7 @@ pub fn plugin(app: &mut App) {
             animating
                 .in_set(TnuaUserControlsSystemSet)
                 .run_if(in_state(Screen::Gameplay)),
-        )
-        .add_observer(player_post_spawn);
+        );
 }
 
 pub fn spawn_player(
@@ -62,20 +61,25 @@ pub fn spawn_player(
 
     let collider = Collider::capsule(cfg.player.hitbox.radius, cfg.player.hitbox.height);
 
+    let attribs = Attributes::default();
+    let comp_attribs = ComputedAttributes {
+        move_speed: cfg.player.movement.speed,
+        attack: 5.0,
+        attack_rate: 1.6,
+        attack_range: 2.0,
+        health: Health::new(30.0),
+        ..default()
+    };
+
+    let attack_timer = AttackRateTimer::new(comp_attribs.attack_rate);
+
     commands
         .spawn((
             StateScoped(Screen::Gameplay),
             pos,
             player,
-            Attributes::default(),
-            ComputedAttributes {
-                move_speed: cfg.player.movement.speed,
-                attack: 5.0,
-                attack_rate: 1.0,
-                attack_range: 2.0,
-                health: Health::new(30.0),
-                ..default()
-            },
+            attribs,
+            comp_attribs,
             // input context
             (
                 GameplayCtx,
@@ -99,9 +103,11 @@ pub fn spawn_player(
                 RigidBody::Dynamic,
                 // Friction::ZERO.with_combine_rule(CoefficientCombine::Multiply),
             ),
+            // timers
             JumpTimer(Timer::from_seconds(cfg.timers.jump, TimerMode::Repeating)),
             StepTimer(Timer::from_seconds(cfg.timers.step, TimerMode::Repeating)),
             InheritedVisibility::default(), // silence the warning because of adding SceneRoot as a child
+            attack_timer,
         ))
         // spawn character mesh as child to adjust mesh position relative to the player origin
         .with_children(|parent| {
@@ -122,21 +128,7 @@ pub fn spawn_player(
             //     Transform::from_xyz(0.0, -0.1, 0.0),
             // ));
             // DEBUG
-        })
-        .observe(player_post_spawn);
+        });
 
     Ok(())
-}
-
-fn player_post_spawn(
-    on: Trigger<OnAdd, Player>,
-    mut players: Query<&mut Player>,
-    mut commands: Commands,
-) {
-    let player = on.target();
-    if let Ok(mut p) = players.get_mut(player) {
-        p.id = player; // update player id with spawned entity
-    }
-    commands.trigger(SwitchInputCtx::new(player, Context::Gameplay));
-    commands.trigger(SwitchInputCtx::from_context(Context::Gameplay));
 }
